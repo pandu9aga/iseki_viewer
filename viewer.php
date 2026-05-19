@@ -64,6 +64,12 @@ foreach ($files as $index => $file) {
     <button onclick="prevSlide()">⏮ Prev</button>
     <button id="togglePlay" onclick="togglePlay()">⏸ Pause</button>
     <button onclick="nextSlide()">⏭ Next</button>
+    <div id="videoControls" style="display: none; align-items: center; gap: 10px; margin-left: 15px; border-left: 1px solid rgba(255,255,255,0.3); padding-left: 15px;">
+        <span id="timeDisplay" style="color: white; font-size: 14px; min-width: 80px; text-align: center;">0:00 / 0:00</span>
+        <input type="range" id="progressBar" min="0" max="100" value="0" style="width: 150px; cursor: pointer;">
+        <button id="muteBtn" onclick="toggleMute()" style="padding: 5px 10px; min-width: 40px;">🔊</button>
+        <input type="range" id="volumeBar" min="0" max="1" step="0.05" value="1" style="width: 80px; cursor: pointer;">
+    </div>
 </div>
 <div class="settings-panel" id="settingsPanel">
     <label>Durasi Foto (detik): <input type="number" id="durationInput" min="1" value="5"></label>
@@ -74,44 +80,143 @@ foreach ($files as $index => $file) {
     let isPlaying = true;
     let duration = 3000;
     let timeout;
+    let currentVolume = 1;
+    let isMuted = false;
+
+    // Elements
+    const progressBar = document.getElementById("progressBar");
+    const volumeBar = document.getElementById("volumeBar");
+    const timeDisplay = document.getElementById("timeDisplay");
+    const muteBtn = document.getElementById("muteBtn");
+    const videoControls = document.getElementById("videoControls");
+
     function init() { if (slides.length > 0) playMedia(0); }
+
+    function formatTime(seconds) {
+        if (isNaN(seconds)) return "0:00";
+        const m = Math.floor(seconds / 60);
+        const s = Math.floor(seconds % 60);
+        return m + ":" + (s < 10 ? "0" : "") + s;
+    }
+
+    function updateVideoUI(media) {
+        if (media.duration) {
+            progressBar.value = (media.currentTime / media.duration) * 100;
+            timeDisplay.textContent = formatTime(media.currentTime) + " / " + formatTime(media.duration);
+        }
+    }
+
     function playMedia(index) {
         clearTimeout(timeout);
         slides.forEach(s => s.classList.remove('active'));
         const slide = slides[index];
         slide.classList.add('active');
         const media = slide.querySelector(".media");
+
         if (slide.dataset.type === 'video') {
+            videoControls.style.display = 'flex';
+            media.volume = isMuted ? 0 : currentVolume;
+            media.muted = isMuted; // Use actual muted property or set volume to 0
+            
+            // Set initial state
             media.currentTime = 0;
-            media.play().catch(e => console.log(e));
+            updateVideoUI(media);
+            
+            if (isPlaying) {
+                media.play().catch(e => console.log("Auto-play prevented:", e));
+            }
+            
             media.onended = () => { if (isPlaying) nextSlide(); };
-        } else if (isPlaying) {
-            timeout = setTimeout(nextSlide, duration);
+            media.ontimeupdate = () => { updateVideoUI(media); };
+            
+            // Allow clicking progress bar to seek
+            progressBar.oninput = (e) => {
+                const seekTime = (e.target.value / 100) * media.duration;
+                media.currentTime = seekTime;
+            };
+        } else {
+            videoControls.style.display = 'none';
+            if (isPlaying) {
+                timeout = setTimeout(nextSlide, duration);
+            }
         }
     }
+
     function nextSlide() {
         if (slides[current].dataset.type === 'video') slides[current].querySelector(".media").pause();
         current = (current + 1) % slides.length;
         playMedia(current);
     }
+
     function prevSlide() {
         if (slides[current].dataset.type === 'video') slides[current].querySelector(".media").pause();
         current = (current - 1 + slides.length) % slides.length;
         playMedia(current);
     }
+
     function togglePlay() {
         isPlaying = !isPlaying;
         document.getElementById("togglePlay").textContent = isPlaying ? "⏸ Pause" : "▶️ Play";
-        if (isPlaying) playMedia(current);
-        else {
+        
+        const slide = slides[current];
+        const media = slide.querySelector(".media");
+
+        if (isPlaying) {
+            if (slide.dataset.type === 'video') {
+                media.play().catch(e => console.log(e));
+            } else {
+                // Resume photo countdown
+                timeout = setTimeout(nextSlide, duration);
+            }
+        } else {
             clearTimeout(timeout);
-            if (slides[current].dataset.type === 'video') slides[current].querySelector(".media").pause();
+            if (slide.dataset.type === 'video') {
+                media.pause();
+            }
         }
     }
+
+    function toggleMute() {
+        isMuted = !isMuted;
+        muteBtn.textContent = isMuted ? "🔇" : "🔊";
+        
+        if (slides[current].dataset.type === 'video') {
+            const media = slides[current].querySelector(".media");
+            media.muted = isMuted;
+            // Also update volume property based on mute state if needed, but muted attribute is usually enough
+        }
+        
+        if (isMuted) {
+            volumeBar.value = 0;
+        } else {
+            volumeBar.value = currentVolume;
+        }
+    }
+
+    volumeBar.oninput = (e) => {
+        currentVolume = e.target.value;
+        if (currentVolume > 0) {
+            isMuted = false;
+            muteBtn.textContent = "🔊";
+        } else {
+            isMuted = true;
+            muteBtn.textContent = "🔇";
+        }
+        if (slides[current].dataset.type === 'video') {
+            const media = slides[current].querySelector(".media");
+            media.muted = isMuted;
+            media.volume = currentVolume;
+        }
+    };
+
     document.getElementById("durationInput").oninput = function() {
         duration = parseInt(this.value) * 1000;
-        if (isPlaying && slides[current].dataset.type === 'photo') playMedia(current);
+        if (isPlaying && slides[current].dataset.type === 'photo') {
+            clearTimeout(timeout);
+            timeout = setTimeout(nextSlide, duration);
+        }
     };
+
     let hideTimeout;
     const elements = [document.getElementById("controls"), document.getElementById("settingsPanel"), document.getElementById("backButton")];
     function resetHideTimer() {
@@ -119,7 +224,9 @@ foreach ($files as $index => $file) {
         clearTimeout(hideTimeout);
         hideTimeout = setTimeout(() => elements.forEach(el => el.style.opacity = 0), 3000);
     }
+    
     document.onmousemove = resetHideTimer;
+    // Unmute video explicitly if requested previously (in case muted is removed in HTML)
     window.onload = init;
     setTimeout(() => location.reload(), 30 * 60 * 1000);
 </script>
