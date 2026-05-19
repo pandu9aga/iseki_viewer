@@ -1,46 +1,36 @@
 <?php
-$base = "slides/";
+$slidesDir = "slides/";
+$parent = isset($_GET['parent']) ? $_GET['parent'] : "photos";
 $subdir = isset($_GET['dir']) ? basename($_GET['dir']) : "";
-$dir = rtrim($base . $subdir, '/') . '/';
+$dir = rtrim($slidesDir . $parent . '/' . $subdir, '/') . '/';
 
 if (!is_dir($dir)) die("Folder tidak ditemukan.");
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    if (isset($_POST['reset'])) {
-        $images = array_merge(
-            glob($dir . "*.jpg"),
-            glob($dir . "*.jpeg"),
-            glob($dir . "*.png"),
-            glob($dir . "*.gif")
-        );
-        foreach ($images as $img) {
-            unlink($img);
-        }
-        $message = "Semua gambar telah dihapus.";
-    } elseif (!empty($_FILES['images'])) {
-        foreach ($_FILES['images']['tmp_name'] as $i => $tmp) {
-            $name = basename($_FILES['images']['name'][$i]);
+    if (!empty($_FILES['files'])) {
+        foreach ($_FILES['files']['tmp_name'] as $i => $tmp) {
+            $name = basename($_FILES['files']['name'][$i]);
             $dest = $dir . $name;
             move_uploaded_file($tmp, $dest);
         }
-        $message = "Gambar berhasil diupload.";
+        $message = "File berhasil diupload.";
     }
 }
 
-// Ambil gambar terbaru setelah upload/reset
-$images = array_values(array_filter(scandir($dir), function($file) use ($dir) {
-    return is_file($dir . $file) && preg_match('/\.(jpg|jpeg|png|gif)$/i', $file);
+// Ambil semua file (gambar dan video)
+$files = array_values(array_filter(scandir($dir), function($file) use ($dir) {
+    return is_file($dir . $file) && preg_match('/\.(jpg|jpeg|png|gif|mp4|webm|ogg)$/i', $file);
 }));
 
 // Urutkan dengan natural sorting
-usort($images, 'strnatcmp');
+usort($files, 'strnatcmp');
 ?>
 
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Iseki Viewer - Upload Gambar <?= htmlspecialchars($subdir) ?></title>
+    <title>Iseki Viewer - Upload File <?= htmlspecialchars($subdir) ?></title>
     <link rel="icon" href="/iseki_viewer/logo-iseki.png" type="image/x-icon">
     <link rel="shortcut icon" href="/iseki_viewer/logo-iseki.png" type="image/x-icon">
     <style>
@@ -51,7 +41,6 @@ usort($images, 'strnatcmp');
         input[type="file"] { margin-bottom: 10px; }
         button { padding: 10px 20px; margin-right: 10px; border: none; border-radius: 6px; cursor: pointer; }
         .upload-btn { background: #007bff; color: white; }
-        .reset-btn { background: #dc3545; color: white; }
         .back-btn { background: #6c757d; color: white; text-decoration: none; padding: 10px 15px; border-radius: 6px; display: inline-block; margin-bottom: 20px; }
 
         .preview-grid {
@@ -60,65 +49,57 @@ usort($images, 'strnatcmp');
             gap: 15px;
             margin-top: 30px;
         }
-        .preview-grid img {
+        .preview-grid img, .preview-grid video {
             width: 100%;
             height: 150px;
             object-fit: cover;
             border-radius: 6px;
             border: 1px solid #ccc;
         }
-        .image-item {
+        .file-item {
             text-align: center;
             font-size: 14px;
             word-break: break-word;
         }
-        .image-name {
+        .file-name {
             margin-top: 5px;
             color: #333;
         }
     </style>
-
-    <!-- Dynamic Favicon -->
     <script src="/iseki_pro_app/js/dynamic-favicon.js"></script>
     <script>document.addEventListener("DOMContentLoaded", function() { setDynamicFavicon("connected_tv", "Viewer"); });</script>
-
-    <!-- Dynamic Favicon Assets -->
     <link rel="stylesheet" href="/iseki_pro_app/css/icon.css">
-    <script src="/iseki_pro_app/js/dynamic-favicon.js"></script>
-    <script>document.addEventListener("DOMContentLoaded", function() { setDynamicFavicon("connected_tv", "Viewer"); });</script>
 </head>
 <body>
     <div class="container">
-        <a href="index.php" class="back-btn">⬅️ Kembali ke Menu Utama</a>
-        <h1>Upload Gambar ke Folder: <?= htmlspecialchars($subdir) ?></h1>
+        <a href="index.php?tab=<?= $parent ?>" class="back-btn">⬅️ Kembali ke Menu Utama</a>
+        <h1>Upload File ke Folder: <?= htmlspecialchars($subdir) ?> (<?= ucfirst($parent) ?>)</h1>
 
         <?php if (!empty($message)): ?>
             <div class="message"><?= htmlspecialchars($message) ?></div>
         <?php endif; ?>
 
         <form method="POST" enctype="multipart/form-data">
-            <input type="file" name="images[]" multiple required><br>
+            <input type="file" name="files[]" multiple required><br>
             <button type="submit" class="upload-btn">📤 Upload</button>
         </form>
 
-        <!-- <form method="POST" onsubmit="return confirm('Yakin ingin menghapus semua gambar?');">
-            <input type="hidden" name="reset" value="1">
-            <button type="submit" class="reset-btn">🗑 Reset Semua Gambar</button>
-        </form> -->
-
-        <?php if (count($images) > 0): ?>
-            <h2>Preview Gambar:</h2>
+        <?php if (count($files) > 0): ?>
+            <h2>Preview File:</h2>
             <div class="preview-grid">
-                <?php foreach ($images as $img): ?>
-                    <div class="image-item">
-                        <img src="<?= $dir . $img ?>?v=<?= time() ?>" alt="Preview">
-                        <div class="image-name"><?= htmlspecialchars($img) ?></div>
+                <?php foreach ($files as $file): ?>
+                    <div class="file-item">
+                        <?php if (preg_match('/\.(mp4|webm|ogg)$/i', $file)): ?>
+                            <video src="<?= $dir . $file ?>" muted></video>
+                        <?php else: ?>
+                            <img src="<?= $dir . $file ?>?v=<?= time() ?>" alt="Preview">
+                        <?php endif; ?>
+                        <div class="file-name"><?= htmlspecialchars($file) ?></div>
                     </div>
                 <?php endforeach; ?>
             </div>
-
         <?php else: ?>
-            <p style="margin-top: 20px; color: #888;">Tidak ada gambar dalam folder ini.</p>
+            <p style="margin-top: 20px; color: #888;">Tidak ada file dalam folder ini.</p>
         <?php endif; ?>
     </div>
 </body>
