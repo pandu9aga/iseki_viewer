@@ -1,17 +1,17 @@
 <?php
-$slidesBase = "slides/";
-$parent = isset($_GET['parent']) ? $_GET['parent'] : "photos";
-$subdir = isset($_GET['dir']) ? basename($_GET['dir']) : "";
-$dir = rtrim($slidesBase . $parent . '/' . $subdir, '/') . '/';
+$slidesBase = 'slides/';
+$parent = isset($_GET['parent']) ? $_GET['parent'] : 'photos';
+$subdir = isset($_GET['dir']) ? basename($_GET['dir']) : '';
+$dir = rtrim($slidesBase.$parent.'/'.$subdir, '/').'/';
 
-if (!is_dir($dir)) {
-    die("Direktori tidak ditemukan.");
+if (! is_dir($dir)) {
+    exit('Direktori tidak ditemukan.');
 }
 
 $regex = ($parent === 'videos') ? '/\.(mp4|webm|ogg)$/i' : '/\.(jpg|jpeg|png|gif|mp4|webm|ogg)$/i';
 
-$files = array_values(array_filter(scandir($dir), function($file) use ($dir, $regex) {
-    return is_file($dir . $file) && preg_match($regex, $file);
+$files = array_values(array_filter(scandir($dir), function ($file) use ($dir, $regex) {
+    return is_file($dir.$file) && preg_match($regex, $file);
 }));
 
 usort($files, 'strnatcmp');
@@ -49,12 +49,15 @@ usort($files, 'strnatcmp');
 foreach ($files as $index => $file) {
     $active = $index === 0 ? 'active' : '';
     $timestamp = time();
-    $filePath = $dir . $file;
+    $filePath = $dir.$file;
     $is_video = preg_match('/\.(mp4|webm|ogg)$/i', $file);
-    echo "<div class='slide-container $active' data-index='$index' data-type='" . ($is_video ? 'video' : 'photo') . "'>";
-    if ($is_video) echo "<video src='$filePath?v=$timestamp' class='media' playsinline muted></video>";
-    else echo "<img src='$filePath?v=$timestamp' class='media'>";
-    echo "</div>";
+    echo "<div class='slide-container $active' data-index='$index' data-type='".($is_video ? 'video' : 'photo')."'>";
+    if ($is_video) {
+        echo "<video src='$filePath?v=$timestamp' class='media' playsinline muted></video>";
+    } else {
+        echo "<img src='$filePath?v=$timestamp' class='media'>";
+    }
+    echo '</div>';
 }
 ?>
 <div class="controls" id="controls">
@@ -69,7 +72,7 @@ foreach ($files as $index => $file) {
     let slides = document.querySelectorAll(".slide-container");
     let current = 0;
     let isPlaying = true;
-    let duration = 5000;
+    let duration = 3000;
     let timeout;
     function init() { if (slides.length > 0) playMedia(0); }
     function playMedia(index) {
@@ -114,7 +117,7 @@ foreach ($files as $index => $file) {
     function resetHideTimer() {
         elements.forEach(el => el.style.opacity = 1);
         clearTimeout(hideTimeout);
-        hideTimeout = setTimeout(() => elements.forEach(el => el.style.opacity = 0), 5000);
+        hideTimeout = setTimeout(() => elements.forEach(el => el.style.opacity = 0), 3000);
     }
     document.onmousemove = resetHideTimer;
     window.onload = init;
