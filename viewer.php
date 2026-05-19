@@ -72,7 +72,7 @@ foreach ($files as $index => $file) {
     </div>
 </div>
 <div class="settings-panel" id="settingsPanel">
-    <label>Durasi Foto (detik): <input type="number" id="durationInput" min="1" value="5"></label>
+    <label>Durasi Foto (detik): <input type="number" id="durationInput" min="1" value="3"></label>
 </div>
 <script>
     let slides = document.querySelectorAll(".slide-container");

@@ -1,5 +1,5 @@
 <?php
-$baseURL = 'http://localhost/iseki_viewer/'; // 192.168.173.201
+$baseURL = 'http://192.168.173.201/iseki_viewer/'; // 192.168.173.201
 $slidesDir = 'slides/';
 $photosDir = $slidesDir.'photos/';
 $videosDir = $slidesDir.'videos/';
