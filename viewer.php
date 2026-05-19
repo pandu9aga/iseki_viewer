@@ -28,7 +28,7 @@ usort($files, 'strnatcmp');
         html, body { width: 100%; height: 100%; background: black; overflow: hidden; font-family: Arial, sans-serif; }
         .slide-container { position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; display: flex; align-items: center; justify-content: center; opacity: 0; transition: opacity 1s ease; z-index: 0; }
         .slide-container.active { opacity: 1; z-index: 2; }
-        .slide-container img, .slide-container video { max-width: 100%; max-height: 100%; object-fit: contain; }
+        .slide-container img, .slide-container video { width: 100%; height: 100%; object-fit: contain; }
         .controls, .settings-panel { transition: opacity 0.5s ease; }
         .controls.hidden, .settings-panel.hidden, .back-button.hidden { opacity: 0; pointer-events: none; }
         .controls { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.5); padding: 10px 20px; border-radius: 12px; display: flex; gap: 10px; z-index: 10; }
