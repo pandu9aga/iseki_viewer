@@ -91,10 +91,10 @@ if (isset($_GET['ajax']) && $_GET['ajax'] == '1') {
         }
         .slide-container img,
         .slide-container video {
+            width: 100%;
+            height: 100%;
             max-width: 100vw;
             max-height: 100vh;
-            width: auto;
-            height: auto;
             object-fit: contain;
             object-position: center;
             display: block;
@@ -259,12 +259,13 @@ if (isset($_GET['ajax']) && $_GET['ajax'] == '1') {
         $filePath = $dir.$file;
         $is_video = preg_match('/\.(mp4|webm|ogg)$/i', $file);
         $mtime = filemtime($filePath);
-        echo "<div class='slide-container $active' data-index='$index' data-name='".htmlspecialchars($file, ENT_QUOTES)."' data-type='".($is_video ? 'video' : 'photo')."' data-url='".htmlspecialchars($filePath, ENT_QUOTES)."' data-mtime='$mtime'>";
+        $safeUrl = htmlspecialchars($filePath, ENT_QUOTES);
+        echo "<div class='slide-container $active' data-index='$index' data-name='".htmlspecialchars($file, ENT_QUOTES)."' data-type='".($is_video ? 'video' : 'photo')."' data-url='$safeUrl' data-mtime='$mtime'>";
         echo "<div class='media-spinner'></div>";
         if ($is_video) {
-            echo "<video class='media' playsinline muted preload='auto'></video>";
+            echo "<video src='$safeUrl' class='media' playsinline muted preload='auto'></video>";
         } else {
-            echo "<img class='media' alt=''>";
+            echo "<img src='$safeUrl' class='media' alt=''>";
         }
         echo '</div>';
     }
@@ -346,7 +347,7 @@ if (isset($_GET['ajax']) && $_GET['ajax'] == '1') {
         }
     }
 
-    // Preload & Cache all media for seamless offline looping
+    // Preload & Cache all media in background for seamless offline looping
     async function preloadAllMedia() {
         if (!cacheStorageSupported || slides.length === 0) {
             cacheBadge.classList.add('ready');
@@ -366,12 +367,17 @@ if (isset($_GET['ajax']) && $_GET['ajax'] == '1') {
                 const blobUrl = await getMediaSourceUrl(originalUrl);
                 const media = slide.querySelector(".media");
                 
-                if (!media.src || media.src === window.location.href) {
+                // If this slide is not currently playing active video, upgrade source to cached blob immediately.
+                // If it IS active video, we mark ready; it will use blob on next loop/slide seamlessly.
+                const isActiveVideo = (slide.classList.contains('active') && slide.dataset.type === 'video');
+                if (!isActiveVideo && media) {
+                    const prevTime = media.currentTime || 0;
                     media.src = blobUrl;
                     if (slide.dataset.type === 'video') {
-                        media.load();
+                        media.currentTime = prevTime;
                     }
                 }
+                
                 cachedCount++;
                 cacheText.textContent = `Caching offline (${cachedCount}/${total})...`;
             } catch (e) {
@@ -429,17 +435,16 @@ if (isset($_GET['ajax']) && $_GET['ajax'] == '1') {
         const slide = slides[current];
         slide.classList.add('active');
         const media = slide.querySelector(".media");
-        const spinner = slide.querySelector(".media-spinner");
+        const originalUrl = slide.dataset.url;
 
-        // Make sure media source is assigned
-        if (!media.src || media.src === window.location.href) {
-            if (spinner) spinner.style.display = "block";
-            const srcUrl = await getMediaSourceUrl(slide.dataset.url);
-            media.src = srcUrl;
-            if (slide.dataset.type === 'video') {
+        // Use cached blob URL if available, otherwise keep streaming online
+        const targetSrc = blobUrls[originalUrl] || originalUrl;
+        if (media.src !== targetSrc) {
+            const isVid = slide.dataset.type === 'video';
+            media.src = targetSrc;
+            if (isVid) {
                 media.load();
             }
-            if (spinner) spinner.style.display = "none";
         }
 
         if (slide.dataset.type === 'video') {
@@ -635,6 +640,7 @@ if (isset($_GET['ajax']) && $_GET['ajax'] == '1') {
                 if (file.type === 'video') {
                     const video = document.createElement("video");
                     video.className = "media";
+                    video.src = file.url;
                     video.playsInline = true;
                     video.muted = true;
                     video.preload = "auto";
@@ -642,6 +648,7 @@ if (isset($_GET['ajax']) && $_GET['ajax'] == '1') {
                 } else {
                     const img = document.createElement("img");
                     img.className = "media";
+                    img.src = file.url;
                     img.alt = "";
                     newSlide.appendChild(img);
                 }
