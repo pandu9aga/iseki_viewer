@@ -1,0 +1,16 @@
+# Caching & byte-range streaming optimization for Android TV and Smart Displays
+<IfModule mod_headers.c>
+    # Enable aggressive client caching for static media (videos and photos)
+    Header set Cache-Control "public, max-age=2592000, immutable"
+    Header set Accept-Ranges "bytes"
+</IfModule>
+
+<IfModule mod_expires.c>
+    ExpiresActive On
+    ExpiresByType video/mp4 "access plus 1 month"
+    ExpiresByType video/webm "access plus 1 month"
+    ExpiresByType video/ogg "access plus 1 month"
+    ExpiresByType image/jpeg "access plus 1 month"
+    ExpiresByType image/png "access plus 1 month"
+    ExpiresByType image/gif "access plus 1 month"
+</IfModule>

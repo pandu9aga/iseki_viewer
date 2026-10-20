@@ -313,45 +313,63 @@ if (isset($_GET['ajax']) && $_GET['ajax'] == '1') {
     const cacheBadge = document.getElementById("cacheBadge");
     const cacheText = document.getElementById("cacheText");
 
-    // Cache Manager using Cache Storage API + Blob Object URLs
+    // Cache Manager: Tries Cache Storage API first, falls back to in-memory Blob caching for Android TV / non-secure contexts
     async function getMediaSourceUrl(url, forceRefresh = false) {
-        if (!cacheStorageSupported) {
-            return url;
-        }
-
         if (!forceRefresh && blobUrls[url]) {
             return blobUrls[url];
         }
 
-        try {
-            const cache = await caches.open(CACHE_NAME);
-            let response = forceRefresh ? null : await cache.match(url);
-            
-            if (!response) {
-                response = await fetch(url);
-                if (response.ok) {
-                    await cache.put(url, response.clone());
+        // 1. Try Cache Storage API if available
+        if (cacheStorageSupported) {
+            try {
+                const cache = await caches.open(CACHE_NAME);
+                let response = forceRefresh ? null : await cache.match(url);
+                
+                if (!response) {
+                    response = await fetch(url);
+                    if (response.ok) {
+                        await cache.put(url, response.clone());
+                    }
                 }
-            }
 
-            const blob = await response.blob();
-            if (blobUrls[url]) {
-                URL.revokeObjectURL(blobUrls[url]);
+                if (response && response.ok) {
+                    const blob = await response.blob();
+                    if (blobUrls[url]) {
+                        URL.revokeObjectURL(blobUrls[url]);
+                    }
+                    const blobUrl = URL.createObjectURL(blob);
+                    blobUrls[url] = blobUrl;
+                    return blobUrl;
+                }
+            } catch (err) {
+                console.warn("Cache Storage error, fallback to direct fetch/memory blob:", err);
             }
-            const blobUrl = URL.createObjectURL(blob);
-            blobUrls[url] = blobUrl;
-            return blobUrl;
-        } catch (err) {
-            console.warn("Cache fetch fallback to direct URL:", err);
-            return url;
         }
+
+        // 2. Memory Blob Fallback (Supported on Android TV WebView even when Cache Storage is disabled)
+        try {
+            const response = await fetch(url);
+            if (response.ok) {
+                const blob = await response.blob();
+                if (blobUrls[url]) {
+                    URL.revokeObjectURL(blobUrls[url]);
+                }
+                const blobUrl = URL.createObjectURL(blob);
+                blobUrls[url] = blobUrl;
+                return blobUrl;
+            }
+        } catch (fetchErr) {
+            console.warn("Fetch fallback failed, using original stream url:", fetchErr);
+        }
+
+        return url;
     }
 
-    // Preload & Cache all media in background for seamless offline looping
+    // Preload & Cache all media in background for seamless offline looping (Supports Cache Storage & Memory Blob fallback)
     async function preloadAllMedia() {
-        if (!cacheStorageSupported || slides.length === 0) {
+        if (slides.length === 0) {
             cacheBadge.classList.add('ready');
-            cacheText.textContent = slides.length === 0 ? "Tidak ada media" : "Offline cache tidak didukung browser";
+            cacheText.textContent = "Tidak ada media";
             return;
         }
 
@@ -368,9 +386,8 @@ if (isset($_GET['ajax']) && $_GET['ajax'] == '1') {
                 const media = slide.querySelector(".media");
                 
                 // If this slide is not currently playing active video, upgrade source to cached blob immediately.
-                // If it IS active video, we mark ready; it will use blob on next loop/slide seamlessly.
                 const isActiveVideo = (slide.classList.contains('active') && slide.dataset.type === 'video');
-                if (!isActiveVideo && media) {
+                if (!isActiveVideo && media && blobUrl !== originalUrl) {
                     const prevTime = media.currentTime || 0;
                     media.src = blobUrl;
                     if (slide.dataset.type === 'video') {
@@ -460,6 +477,22 @@ if (isset($_GET['ajax']) && $_GET['ajax'] == '1') {
                 media.play().catch(e => {
                     console.log("Auto-play prevented:", e);
                 });
+            }
+
+            // Warm prebuffer next slide for zero latency transition (especially on Android TV)
+            if (slides.length > 1) {
+                const nextIdx = (current + 1) % slides.length;
+                const nextSlideEl = slides[nextIdx];
+                if (nextSlideEl) {
+                    const nextMedia = nextSlideEl.querySelector(".media");
+                    const nextUrl = nextSlideEl.dataset.url;
+                    if (nextMedia && (!nextMedia.src || nextMedia.src === window.location.href)) {
+                        nextMedia.src = blobUrls[nextUrl] || nextUrl;
+                        if (nextSlideEl.dataset.type === 'video') {
+                            nextMedia.load();
+                        }
+                    }
+                }
             }
             
             media.onended = () => { if (isPlaying) nextSlide(); };
